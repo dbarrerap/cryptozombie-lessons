@@ -7,7 +7,7 @@ material:
     language: sol
     startingCode:
       "zombiefactory.sol": |
-        pragma solidity >=0.5.0 <0.6.0;
+        pragma solidity ^0.8.21;
 
         import "./ownable.sol";
 
@@ -31,9 +31,12 @@ material:
             mapping (uint => address) public zombieToOwner;
             mapping (address => uint) ownerZombieCount;
 
+            constructor() Ownable(msg.sender) { }
+
             function _createZombie(string memory _name, uint _dna) internal {
                 // 2. Update the following line:
-                uint id = zombies.push(Zombie(_name, _dna)) - 1;
+                zombies.push(Zombie(_name, _dna));
+                uint id = zombies.length - 1;
                 zombieToOwner[id] = msg.sender;
                 ownerZombieCount[msg.sender]++;
                 emit NewZombie(id, _name, _dna);
@@ -53,11 +56,11 @@ material:
 
         }
       "zombiefeeding.sol": |
-        pragma solidity >=0.5.0 <0.6.0;
+        pragma solidity ^0.8.21;
 
         import "./zombiefactory.sol";
 
-        contract KittyInterface {
+        interface KittyInterface {
           function getKitty(uint256 _id) external view returns (
             bool isGestating,
             bool isReady,
@@ -99,15 +102,27 @@ material:
 
         }
       "ownable.sol": |
-        pragma solidity >=0.5.0 <0.6.0;
+        pragma solidity ^0.8.20;
+
+        import {Context} from "../utils/Context.sol";
 
         /**
         * @title Ownable
         * @dev The Ownable contract has an owner address, and provides basic authorization control
         * functions, this simplifies the implementation of "user permissions".
         */
-        contract Ownable {
+        abstract contract Ownable is Context {
           address private _owner;
+
+          /**
+          * @dev The caller account is not authorized to perform an operation.
+          */
+          error OwnableUnauthorizedAccount(address account);
+
+          /**
+          * @dev The owner is not a valid owner account. (eg. `address(0)`)
+          */
+          error OwnableInvalidOwner(address owner);
 
           event OwnershipTransferred(
             address indexed previousOwner,
@@ -118,15 +133,17 @@ material:
           * @dev The Ownable constructor sets the original `owner` of the contract to the sender
           * account.
           */
-          constructor() internal {
-            _owner = msg.sender;
-            emit OwnershipTransferred(address(0), _owner);
+          constructor(address initialOwner) {
+            if (initialOwner == address(0)) {
+              revert OwnableInvalidOwner(address(0));
+            }
+            _transferOwnership(initialOwner);
           }
 
           /**
           * @return the address of the owner.
           */
-          function owner() public view returns(address) {
+          function owner() public view virtual returns(address) {
             return _owner;
           }
 
@@ -134,15 +151,17 @@ material:
           * @dev Throws if called by any account other than the owner.
           */
           modifier onlyOwner() {
-            require(isOwner());
+            _checkOwner();
             _;
           }
 
           /**
-          * @return true if `msg.sender` is the owner of the contract.
+          * @dev Throws if the sender is not the owner.
           */
-          function isOwner() public view returns(bool) {
-            return msg.sender == _owner;
+          function _checkOwner() internal view virtual {
+            if (owner() != _msgSender()) {
+              revert OwnableUnauthorizedAccount(_msgSender());
+            }
           }
 
           /**
@@ -151,16 +170,18 @@ material:
           * It will not be possible to call the functions with the `onlyOwner`
           * modifier anymore.
           */
-          function renounceOwnership() public onlyOwner {
-            emit OwnershipTransferred(_owner, address(0));
-            _owner = address(0);
+          function renounceOwnership() public virtual onlyOwner {
+            _transferOwnership(address(0));
           }
 
           /**
           * @dev Allows the current owner to transfer control of the contract to a newOwner.
           * @param newOwner The address to transfer ownership to.
           */
-          function transferOwnership(address newOwner) public onlyOwner {
+          function transferOwnership(address newOwner) public virtual onlyOwner {
+            if (newOwner == address(0)) {
+              revert OwnableInvalidOwner(address(0));
+            }
             _transferOwnership(newOwner);
           }
 
@@ -168,14 +189,14 @@ material:
           * @dev Transfers control of the contract to a newOwner.
           * @param newOwner The address to transfer ownership to.
           */
-          function _transferOwnership(address newOwner) internal {
-            require(newOwner != address(0));
-            emit OwnershipTransferred(_owner, newOwner);
+          function _transferOwnership(address newOwner) internal virtual {
+            address oldOwner = _owner;
             _owner = newOwner;
+            emit OwnershipTransferred(oldOwner, newOwner);
           }
         }
     answer: >
-      pragma solidity >=0.5.0 <0.6.0;
+      pragma solidity ^0.8.21;
 
       import "./ownable.sol";
 
@@ -199,8 +220,11 @@ material:
           mapping (uint => address) public zombieToOwner;
           mapping (address => uint) ownerZombieCount;
 
+          constructor() Ownable(msg.sender) { }
+
           function _createZombie(string memory _name, uint _dna) internal {
-              uint id = zombies.push(Zombie(_name, _dna, 1, uint32(now + cooldownTime))) - 1;
+              zombies.push(Zombie(_name, _dna, 1, uint32(block.timestamp + cooldownTime)));
+              uint id = zombies.length - 1;
               zombieToOwner[id] = msg.sender;
               ownerZombieCount[msg.sender]++;
               emit NewZombie(id, _name, _dna);
@@ -231,7 +255,7 @@ In order to keep track of how much time a zombie has to wait until it can attack
 
 Solidity provides some native units for dealing with time. 
 
-The variable `now` will return the current unix timestamp of the latest block (the number of seconds that have passed since January 1st 1970). The unix time as I write this is `1515527488`.
+The variable `block.timestamp` will return the current unix timestamp of the latest block (the number of seconds that have passed since January 1st 1970). The unix time as I write this is `1515527488`.
 
 >Note: Unix time is traditionally stored in a 32-bit number. This will lead to the "Year 2038" problem, when 32-bit unix timestamps will overflow and break a lot of legacy systems. So if we wanted our DApp to keep running 20 years from now, we could use a 64-bit number instead — but our users would have to spend more gas to use our DApp in the meantime. Design decisions!
 
@@ -242,15 +266,15 @@ Here's an example of how these time units can be useful:
 ```
 uint lastUpdated;
 
-// Set `lastUpdated` to `now`
+// Set `lastUpdated` to `block.timestamp`
 function updateTimestamp() public {
-  lastUpdated = now;
+  lastUpdated = block.timestamp;
 }
 
 // Will return `true` if 5 minutes have passed since `updateTimestamp` was 
 // called, `false` if 5 minutes have not passed
 function fiveMinutesHavePassed() public view returns (bool) {
-  return (now >= (lastUpdated + 5 minutes));
+  return (block.timestamp >= (lastUpdated + 5 minutes));
 }
 ```
 
@@ -265,10 +289,10 @@ Let's add a cooldown time to our DApp, and make it so zombies have to wait **1 d
 
 2. Since we added a `level` and `readyTime` to our `Zombie` struct in the previous chapter, we need to update `_createZombie()` to use the correct number of arguments when we create a new `Zombie` struct.
 
-  Update the `zombies.push` line of code to add 2 more arguments: `1` (for `level`), and `uint32(now + cooldownTime)` (for `readyTime`).
+  Update the `zombies.push` line of code to add 2 more arguments: `1` (for `level`), and `uint32(block.timestamp + cooldownTime)` (for `readyTime`).
 
->Note: The `uint32(...)` is necessary because `now` returns a `uint256` by default. So we need to explicitly convert it to a `uint32`.
+>Note: The `uint32(...)` is necessary because `block.timestamp` returns a `uint256` by default. So we need to explicitly convert it to a `uint32`.
 
-`now + cooldownTime` will equal the current unix timestamp (in seconds) plus the number of seconds in 1 day — which will equal the unix timestamp 1 day from now. Later we can compare to see if this zombie's `readyTime` is greater than `now` to see if enough time has passed to use the zombie again.
+`block.timestamp + cooldownTime` will equal the current unix timestamp (in seconds) plus the number of seconds in 1 day — which will equal the unix timestamp 1 day from now. Later we can compare to see if this zombie's `readyTime` is greater than `block.timestamp` to see if enough time has passed to use the zombie again.
 
 We'll implement the functionality to limit actions based on `readyTime` in the next chapter.

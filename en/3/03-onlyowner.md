@@ -7,11 +7,11 @@ material:
     language: sol
     startingCode:
       "zombiefeeding.sol": |
-        pragma solidity >=0.5.0 <0.6.0;
+        pragma solidity ^0.8.21;
 
         import "./zombiefactory.sol";
 
-        contract KittyInterface {
+        interface KittyInterface {
           function getKitty(uint256 _id) external view returns (
             bool isGestating,
             bool isReady,
@@ -54,7 +54,7 @@ material:
 
         }
       "zombiefactory.sol": |
-        pragma solidity >=0.5.0 <0.6.0;
+        pragma solidity ^0.8.21;
 
         import "./ownable.sol";
 
@@ -75,8 +75,11 @@ material:
             mapping (uint => address) public zombieToOwner;
             mapping (address => uint) ownerZombieCount;
 
+            constructor() Ownable(msg.sender) { }
+
             function _createZombie(string memory _name, uint _dna) internal {
-                uint id = zombies.push(Zombie(_name, _dna)) - 1;
+                zombies.push(Zombie(_name, _dna));
+                uint id = zombies.length - 1;
                 zombieToOwner[id] = msg.sender;
                 ownerZombieCount[msg.sender]++;
                 emit NewZombie(id, _name, _dna);
@@ -96,15 +99,27 @@ material:
 
         }
       "ownable.sol": |
-        pragma solidity >=0.5.0 <0.6.0;
+        pragma solidity ^0.8.20;
+
+        import {Context} from "../utils/Context.sol";
 
         /**
         * @title Ownable
         * @dev The Ownable contract has an owner address, and provides basic authorization control
         * functions, this simplifies the implementation of "user permissions".
         */
-        contract Ownable {
+        abstract contract Ownable is Context {
           address private _owner;
+
+          /**
+          * @dev The caller account is not authorized to perform an operation.
+          */
+          error OwnableUnauthorizedAccount(address account);
+
+          /**
+          * @dev The owner is not a valid owner account. (eg. `address(0)`)
+          */
+          error OwnableInvalidOwner(address owner);
 
           event OwnershipTransferred(
             address indexed previousOwner,
@@ -115,15 +130,17 @@ material:
           * @dev The Ownable constructor sets the original `owner` of the contract to the sender
           * account.
           */
-          constructor() internal {
-            _owner = msg.sender;
-            emit OwnershipTransferred(address(0), _owner);
+          constructor(address initialOwner) {
+            if (initialOwner == address(0)) {
+              revert OwnableInvalidOwner(address(0));
+            }
+            _transferOwnership(initialOwner);
           }
 
           /**
           * @return the address of the owner.
           */
-          function owner() public view returns(address) {
+          function owner() public view virtual returns(address) {
             return _owner;
           }
 
@@ -131,15 +148,17 @@ material:
           * @dev Throws if called by any account other than the owner.
           */
           modifier onlyOwner() {
-            require(isOwner());
+            _checkOwner();
             _;
           }
 
           /**
-          * @return true if `msg.sender` is the owner of the contract.
+          * @dev Throws if the sender is not the owner.
           */
-          function isOwner() public view returns(bool) {
-            return msg.sender == _owner;
+          function _checkOwner() internal view virtual {
+            if (owner() != _msgSender()) {
+              revert OwnableUnauthorizedAccount(_msgSender());
+            }
           }
 
           /**
@@ -148,16 +167,18 @@ material:
           * It will not be possible to call the functions with the `onlyOwner`
           * modifier anymore.
           */
-          function renounceOwnership() public onlyOwner {
-            emit OwnershipTransferred(_owner, address(0));
-            _owner = address(0);
+          function renounceOwnership() public virtual onlyOwner {
+            _transferOwnership(address(0));
           }
 
           /**
           * @dev Allows the current owner to transfer control of the contract to a newOwner.
           * @param newOwner The address to transfer ownership to.
           */
-          function transferOwnership(address newOwner) public onlyOwner {
+          function transferOwnership(address newOwner) public virtual onlyOwner {
+            if (newOwner == address(0)) {
+              revert OwnableInvalidOwner(address(0));
+            }
             _transferOwnership(newOwner);
           }
 
@@ -165,18 +186,18 @@ material:
           * @dev Transfers control of the contract to a newOwner.
           * @param newOwner The address to transfer ownership to.
           */
-          function _transferOwnership(address newOwner) internal {
-            require(newOwner != address(0));
-            emit OwnershipTransferred(_owner, newOwner);
+          function _transferOwnership(address newOwner) internal virtual {
+            address oldOwner = _owner;
             _owner = newOwner;
+            emit OwnershipTransferred(oldOwner, newOwner);
           }
         }
     answer: >
-      pragma solidity >=0.5.0 <0.6.0;
+      pragma solidity ^0.8.21;
 
       import "./zombiefactory.sol";
 
-      contract KittyInterface {
+      interface KittyInterface {
         function getKitty(uint256 _id) external view returns (
           bool isGestating,
           bool isReady,
@@ -237,81 +258,107 @@ A function modifier looks just like a function, but uses the keyword `modifier` 
 Let's take a closer look by examining `onlyOwner`:
 
 ```
-pragma solidity >=0.5.0 <0.6.0;
+// SPDX-License-Identifier: MIT
+// OpenZeppelin Contracts (last updated v5.0.0) (access/Ownable.sol)
+
+pragma solidity ^0.8.20;
+
+import {Context} from "../utils/Context.sol";
 
 /**
- * @title Ownable
- * @dev The Ownable contract has an owner address, and provides basic authorization control
- * functions, this simplifies the implementation of "user permissions".
+ * @dev Contract module which provides a basic access control mechanism, where
+ * there is an account (an owner) that can be granted exclusive access to
+ * specific functions.
+ *
+ * The initial owner is set to the address provided by the deployer. This can
+ * later be changed with {transferOwnership}.
+ *
+ * This module is used through inheritance. It will make available the modifier
+ * `onlyOwner`, which can be applied to your functions to restrict their use to
+ * the owner.
  */
-contract Ownable {
-  address private _owner;
+abstract contract Ownable is Context {
+    address private _owner;
 
-  event OwnershipTransferred(
-    address indexed previousOwner,
-    address indexed newOwner
-  );
+    /**
+     * @dev The caller account is not authorized to perform an operation.
+     */
+    error OwnableUnauthorizedAccount(address account);
 
-  /**
-   * @dev The Ownable constructor sets the original `owner` of the contract to the sender
-   * account.
-   */
-  constructor() internal {
-    _owner = msg.sender;
-    emit OwnershipTransferred(address(0), _owner);
-  }
+    /**
+     * @dev The owner is not a valid owner account. (eg. `address(0)`)
+     */
+    error OwnableInvalidOwner(address owner);
 
-  /**
-   * @return the address of the owner.
-   */
-  function owner() public view returns(address) {
-    return _owner;
-  }
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
-  /**
-   * @dev Throws if called by any account other than the owner.
-   */
-  modifier onlyOwner() {
-    require(isOwner());
-    _;
-  }
+    /**
+     * @dev Initializes the contract setting the address provided by the deployer as the initial owner.
+     */
+    constructor(address initialOwner) {
+        if (initialOwner == address(0)) {
+            revert OwnableInvalidOwner(address(0));
+        }
+        _transferOwnership(initialOwner);
+    }
 
-  /**
-   * @return true if `msg.sender` is the owner of the contract.
-   */
-  function isOwner() public view returns(bool) {
-    return msg.sender == _owner;
-  }
+    /**
+     * @dev Throws if called by any account other than the owner.
+     */
+    modifier onlyOwner() {
+        _checkOwner();
+        _;
+    }
 
-  /**
-   * @dev Allows the current owner to relinquish control of the contract.
-   * @notice Renouncing to ownership will leave the contract without an owner.
-   * It will not be possible to call the functions with the `onlyOwner`
-   * modifier anymore.
-   */
-  function renounceOwnership() public onlyOwner {
-    emit OwnershipTransferred(_owner, address(0));
-    _owner = address(0);
-  }
+    /**
+     * @dev Returns the address of the current owner.
+     */
+    function owner() public view virtual returns (address) {
+        return _owner;
+    }
 
-  /**
-   * @dev Allows the current owner to transfer control of the contract to a newOwner.
-   * @param newOwner The address to transfer ownership to.
-   */
-  function transferOwnership(address newOwner) public onlyOwner {
-    _transferOwnership(newOwner);
-  }
+    /**
+     * @dev Throws if the sender is not the owner.
+     */
+    function _checkOwner() internal view virtual {
+        if (owner() != _msgSender()) {
+            revert OwnableUnauthorizedAccount(_msgSender());
+        }
+    }
 
-  /**
-   * @dev Transfers control of the contract to a newOwner.
-   * @param newOwner The address to transfer ownership to.
-   */
-  function _transferOwnership(address newOwner) internal {
-    require(newOwner != address(0));
-    emit OwnershipTransferred(_owner, newOwner);
-    _owner = newOwner;
-  }
+    /**
+     * @dev Leaves the contract without owner. It will not be possible to call
+     * `onlyOwner` functions. Can only be called by the current owner.
+     *
+     * NOTE: Renouncing ownership will leave the contract without an owner,
+     * thereby disabling any functionality that is only available to the owner.
+     */
+    function renounceOwnership() public virtual onlyOwner {
+        _transferOwnership(address(0));
+    }
+
+    /**
+     * @dev Transfers ownership of the contract to a new account (`newOwner`).
+     * Can only be called by the current owner.
+     */
+    function transferOwnership(address newOwner) public virtual onlyOwner {
+        if (newOwner == address(0)) {
+            revert OwnableInvalidOwner(address(0));
+        }
+        _transferOwnership(newOwner);
+    }
+
+    /**
+     * @dev Transfers ownership of the contract to a new account (`newOwner`).
+     * Internal function without access restriction.
+     */
+    function _transferOwnership(address newOwner) internal virtual {
+        address oldOwner = _owner;
+        _owner = newOwner;
+        emit OwnershipTransferred(oldOwner, newOwner);
+    }
 }
+
 ```
 
 Notice the `onlyOwner` modifier on the `renounceOwnership` function. When you call `renounceOwnership`, the code inside `onlyOwner` executes **first**. Then when it hits the `_;` statement in `onlyOwner`, it goes back and executes the code inside `renounceOwnership`.
