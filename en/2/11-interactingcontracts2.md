@@ -7,7 +7,7 @@ material:
     language: sol
     startingCode:
       "zombiefeeding.sol": |
-        pragma solidity >=0.5.0 <0.6.0;
+        pragma solidity ^0.8.21;
 
         import "./zombiefactory.sol";
 
@@ -41,7 +41,7 @@ material:
 
         }
       "zombiefactory.sol": |
-        pragma solidity >=0.5.0 <0.6.0;
+        pragma solidity ^0.8.21;
 
         contract ZombieFactory {
 
@@ -61,7 +61,8 @@ material:
             mapping (address => uint) ownerZombieCount;
 
             function _createZombie(string memory _name, uint _dna) internal {
-                uint id = zombies.push(Zombie(_name, _dna)) - 1;
+                zombies.push(Zombie(_name, _dna));
+                uint id = zombies.length - 1;
                 zombieToOwner[id] = msg.sender;
                 ownerZombieCount[msg.sender]++;
                 emit NewZombie(id, _name, _dna);
@@ -80,7 +81,7 @@ material:
 
         }
     answer: >
-      pragma solidity >=0.5.0 <0.6.0;
+      pragma solidity ^0.8.21;
 
       import "./zombiefactory.sol";
 
