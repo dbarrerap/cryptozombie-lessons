@@ -7,11 +7,11 @@ material:
     language: sol
     startingCode:
       "zombiefeeding.sol": |
-        pragma solidity >=0.5.0 <0.6.0;
+        pragma solidity ^0.8.21;
 
         import "./zombiefactory.sol";
 
-        contract KittyInterface {
+        interface KittyInterface {
           function getKitty(uint256 _id) external view returns (
             bool isGestating,
             bool isReady,
@@ -37,11 +37,11 @@ material:
           }
 
           function _triggerCooldown(Zombie storage _zombie) internal {
-            _zombie.readyTime = uint32(now + cooldownTime);
+            _zombie.readyTime = uint32(block.timestamp + cooldownTime);
           }
 
           function _isReady(Zombie storage _zombie) internal view returns (bool) {
-              return (_zombie.readyTime <= now);
+            return (_zombie.readyTime <= block.timestamp);
           }
 
           // 2. Add modifier to function definition:
@@ -66,7 +66,7 @@ material:
           }
         }
       "zombieattack.sol": |
-        pragma solidity >=0.5.0 <0.6.0;
+        pragma solidity ^0.8.21;
 
         import "./zombiehelper.sol";
 
@@ -83,7 +83,7 @@ material:
           }
         }
       "zombiehelper.sol": |
-        pragma solidity >=0.5.0 <0.6.0;
+        pragma solidity ^0.8.21;
 
         import "./zombiefeeding.sol";
 
@@ -97,7 +97,7 @@ material:
           }
 
           function withdraw() external onlyOwner {
-            address _owner = owner();
+            address payable _owner = payable(owner());
             _owner.transfer(address(this).balance);
           }
 
@@ -134,7 +134,7 @@ material:
 
         }
       "zombiefactory.sol": |
-        pragma solidity >=0.5.0 <0.6.0;
+        pragma solidity ^0.8.21;
 
         import "./ownable.sol";
 
@@ -158,8 +158,11 @@ material:
             mapping (uint => address) public zombieToOwner;
             mapping (address => uint) ownerZombieCount;
 
+            constructor() Ownable(msg.sender) { }
+
             function _createZombie(string memory _name, uint _dna) internal {
-                uint id = zombies.push(Zombie(_name, _dna, 1, uint32(now + cooldownTime))) - 1;
+                zombies.push(Zombie(_name, _dna, 1, uint32(block.timestamp + cooldownTime)));
+                uint id = zombies.length - 1;
                 zombieToOwner[id] = msg.sender;
                 ownerZombieCount[msg.sender]++;
                 emit NewZombie(id, _name, _dna);
@@ -179,15 +182,27 @@ material:
 
         }
       "ownable.sol": |
-        pragma solidity >=0.5.0 <0.6.0;
+        pragma solidity ^0.8.20;
+
+        import {Context} from "../utils/Context.sol";
 
         /**
         * @title Ownable
         * @dev The Ownable contract has an owner address, and provides basic authorization control
         * functions, this simplifies the implementation of "user permissions".
         */
-        contract Ownable {
+        abstract contract Ownable is Context {
           address private _owner;
+
+          /**
+          * @dev The caller account is not authorized to perform an operation.
+          */
+          error OwnableUnauthorizedAccount(address account);
+
+          /**
+          * @dev The owner is not a valid owner account. (eg. `address(0)`)
+          */
+          error OwnableInvalidOwner(address owner);
 
           event OwnershipTransferred(
             address indexed previousOwner,
@@ -198,15 +213,17 @@ material:
           * @dev The Ownable constructor sets the original `owner` of the contract to the sender
           * account.
           */
-          constructor() internal {
-            _owner = msg.sender;
-            emit OwnershipTransferred(address(0), _owner);
+          constructor(address initialOwner) {
+            if (initialOwner == address(0)) {
+              revert OwnableInvalidOwner(address(0));
+            }
+            _transferOwnership(initialOwner);
           }
 
           /**
           * @return the address of the owner.
           */
-          function owner() public view returns(address) {
+          function owner() public view virtual returns(address) {
             return _owner;
           }
 
@@ -214,15 +231,17 @@ material:
           * @dev Throws if called by any account other than the owner.
           */
           modifier onlyOwner() {
-            require(isOwner());
+            _checkOwner();
             _;
           }
 
           /**
-          * @return true if `msg.sender` is the owner of the contract.
+          * @dev Throws if the sender is not the owner.
           */
-          function isOwner() public view returns(bool) {
-            return msg.sender == _owner;
+          function _checkOwner() internal view virtual {
+            if (owner() != _msgSender()) {
+              revert OwnableUnauthorizedAccount(_msgSender());
+            }
           }
 
           /**
@@ -231,16 +250,18 @@ material:
           * It will not be possible to call the functions with the `onlyOwner`
           * modifier anymore.
           */
-          function renounceOwnership() public onlyOwner {
-            emit OwnershipTransferred(_owner, address(0));
-            _owner = address(0);
+          function renounceOwnership() public virtual onlyOwner {
+            _transferOwnership(address(0));
           }
 
           /**
           * @dev Allows the current owner to transfer control of the contract to a newOwner.
           * @param newOwner The address to transfer ownership to.
           */
-          function transferOwnership(address newOwner) public onlyOwner {
+          function transferOwnership(address newOwner) public virtual onlyOwner {
+            if (newOwner == address(0)) {
+              revert OwnableInvalidOwner(address(0));
+            }
             _transferOwnership(newOwner);
           }
 
@@ -248,18 +269,18 @@ material:
           * @dev Transfers control of the contract to a newOwner.
           * @param newOwner The address to transfer ownership to.
           */
-          function _transferOwnership(address newOwner) internal {
-            require(newOwner != address(0));
-            emit OwnershipTransferred(_owner, newOwner);
+          function _transferOwnership(address newOwner) internal virtual {
+            address oldOwner = _owner;
             _owner = newOwner;
+            emit OwnershipTransferred(oldOwner, newOwner);
           }
         }
     answer: >
-      pragma solidity >=0.5.0 <0.6.0;
+      pragma solidity ^0.8.21;
 
       import "./zombiefactory.sol";
 
-      contract KittyInterface {
+      interface KittyInterface {
         function getKitty(uint256 _id) external view returns (
           bool isGestating,
           bool isReady,
@@ -288,11 +309,11 @@ material:
         }
 
         function _triggerCooldown(Zombie storage _zombie) internal {
-          _zombie.readyTime = uint32(now + cooldownTime);
+          _zombie.readyTime = uint32(block.timestamp + cooldownTime);
         }
 
         function _isReady(Zombie storage _zombie) internal view returns (bool) {
-            return (_zombie.readyTime <= now);
+            return (_zombie.readyTime <= block.timestamp);
         }
 
         function feedAndMultiply(uint _zombieId, uint _targetDna, string memory _species) internal ownerOf(_zombieId) {
